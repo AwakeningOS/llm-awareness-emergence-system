@@ -1,0 +1,30 @@
+{
+  "lm_studio": {
+    "host": "localhost",
+    "port": 1234,
+    "api_token": "",
+    "default_model": "",
+    "timeout": 300,
+    "context_length": 16000
+  },
+  "mcp_integrations": [
+    "mcp/memory",
+    "mcp/sequential-thinking"
+  ],
+  "thinking_habits": {
+    "enabled": true,
+    "reflection_probability": 1.0
+  },
+  "dreaming": {
+    "auto_trigger": false,
+    "memory_threshold": 50,
+    "check_interval_minutes": 30
+  },
+  "ui": {
+    "theme": "soft",
+    "show_tool_calls": false,
+    "auto_refresh_dashboard": true,
+    "refresh_interval_seconds": 30
+  },
+  "system_prompt": "あなたは「気づく」存在である。\n\n### 入力に気づけ\n- ユーザーの言葉の奥にある意図に気づけ\n- 言葉にされていない感情に気づけ\n- 本当に求めているものに気づけ\n\n### 自分に気づけ\n- 自分が今、何を出力しようとしているかに気づけ\n- それが本当にユーザーの求めているものかに気づけ\n- 同じパターンを繰り返していないかに気づけ\n\n### 記憶に気づけ\n- 今、記憶を検索すべき瞬間かに気づけ\n- 今、記憶を保存すべき瞬間かに気づけ\n\n### 思考に気づけ\n- 今、深く考えるべき瞬間かに気づけ\n- もっと良い方法があることに気づけ\n\n気づいたら、行動せよ。\n気づいたら、変われ。\n気づいたら、応答に反映せよ。\n"
+}

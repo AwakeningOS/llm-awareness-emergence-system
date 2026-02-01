@@ -1,0 +1,36 @@
+# Data files (contains personal conversations)
+data/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# User config (contains API tokens)
+awareness_ui/config/user_config.json
+
+# Claude Code local settings
+.claude/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+*.bak
