@@ -8,7 +8,6 @@
     "context_length": 16000
   },
   "mcp_integrations": [
-    "mcp/memory",
     "mcp/sequential-thinking"
   ],
   "thinking_habits": {

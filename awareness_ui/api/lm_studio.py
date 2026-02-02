@@ -137,7 +137,7 @@ class LMStudioAPI:
             tuple: (response_text, metadata)
         """
         if integrations is None:
-            integrations = ["mcp/memory", "mcp/sequential-thinking"]
+            integrations = ["mcp/sequential-thinking"]
 
         # Get currently loaded model - MCP API requires model parameter
         # If no model loaded, use DEFAULT_MODEL for JIT loading (matching original Discord bot)
@@ -169,8 +169,9 @@ class LMStudioAPI:
             )
 
             if response.status_code != 200:
-                logger.error(f"MCP API error: {response.status_code}")
-                return f"API Error: {response.status_code}", {"error": True}
+                error_detail = response.text[:500] if response.text else "No details"
+                logger.error(f"MCP API error: {response.status_code} - {error_detail}")
+                return f"API Error: {response.status_code} - {error_detail}", {"error": True}
 
             result = response.json()
 

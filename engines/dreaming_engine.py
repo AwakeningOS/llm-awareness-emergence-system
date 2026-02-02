@@ -42,7 +42,7 @@ class DreamingEngine:
         self.llm_host = llm_host
         self.llm_port = llm_port
         self.api_token = api_token
-        self.api_url = f"http://{self.llm_host}:{self.llm_port}/v1/chat/completions"
+        self.api_url = f"http://{self.llm_host}:{self.llm_port}/api/v1/chat"
 
         # Data directory
         self.data_dir = data_dir or Path("./data")
@@ -86,8 +86,8 @@ class DreamingEngine:
         # Default model for JIT
         return "qwen/qwen3-30b-a3b-2507"
 
-    def _call_llm(self, prompt: str, temperature: float = 0.7) -> str:
-        """Call LM Studio API"""
+    def _call_llm(self, prompt: str, temperature: float = 0.7, use_sequential_thinking: bool = True) -> str:
+        """Call LM Studio MCP API with optional sequential-thinking"""
         try:
             headers = {"Content-Type": "application/json"}
             if self.api_token:
@@ -95,31 +95,47 @@ class DreamingEngine:
 
             # Get model for API call
             model = self._get_loaded_model()
-            logger.info(f"Calling LLM (model: {model}) with prompt length: {len(prompt)} chars")
+
+            # Build integrations list - use mcp.json server with mcp/ prefix
+            integrations = ["mcp/sequential-thinking"] if use_sequential_thinking else []
+
+            logger.info(f"Calling MCP API (model: {model}, integrations: {integrations}) with prompt length: {len(prompt)} chars")
+
+            payload = {
+                "model": model,
+                "input": prompt,
+                "integrations": integrations,
+                "temperature": temperature,
+                "context_length": 16000
+            }
 
             response = requests.post(
                 self.api_url,
                 headers=headers,
-                json={
-                    "model": model,  # Required for LM Studio 0.4.0
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": temperature,
-                    "max_tokens": 2048
-                },
+                json=payload,
                 timeout=300
             )
 
             if response.status_code == 200:
                 result = response.json()
-                content = result["choices"][0]["message"]["content"]
-                logger.info(f"LLM response length: {len(content)} chars")
+
+                # Parse MCP response format
+                messages = []
+                for item in result.get("output", []):
+                    if item.get("type") == "message":
+                        content = item.get("content", "")
+                        if content:
+                            messages.append(content)
+
+                content = "\n".join(messages).strip()
+                logger.info(f"MCP response length: {len(content)} chars")
                 return content
             else:
-                logger.error(f"LLM API error: {response.status_code} - {response.text[:200]}")
+                logger.error(f"MCP API error: {response.status_code} - {response.text[:200]}")
                 return ""
 
         except Exception as e:
-            logger.error(f"LLM API call failed: {e}")
+            logger.error(f"MCP API call failed: {e}")
             return ""
 
     def _parse_insights(self, response: str) -> list:
