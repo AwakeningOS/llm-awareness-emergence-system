@@ -15,10 +15,15 @@ logger = logging.getLogger(__name__)
 
 # ========== Dream Prompt ==========
 
-DREAM_PROMPT = """以下はあなたの記憶とユーザーからのフィードバックです。
+DREAM_PROMPT = """以下はあなたの記憶です。
 
+## システムが記録した対話・振り返り
 {memories}
 
+## あなたが自発的に記憶したこと
+{mcp_memory}
+
+## ユーザーからのフィードバック
 {user_feedback}
 
 ---
@@ -56,6 +61,9 @@ class DreamingEngine:
 
         # User feedback file (from personality_axis)
         self.user_feedback_file = self.data_dir / "personality_axis" / "user_feedback.jsonl"
+
+        # MCP memory file (LLM's self-initiated memories)
+        self.mcp_memory_file = self.data_dir / "mcp_memory.json"
 
     def check_threshold(self, threshold: int = 50) -> dict:
         """Check if memory count exceeds threshold"""
@@ -177,6 +185,40 @@ class DreamingEngine:
         # Return most recent feedbacks
         return feedbacks[-limit:]
 
+    def _load_mcp_memory(self) -> list:
+        """Load MCP memory (LLM's self-initiated memories as Knowledge Graph)"""
+        entities = []
+        if not self.mcp_memory_file.exists():
+            return entities
+
+        try:
+            with open(self.mcp_memory_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # MCP memory format: {"entities": [...], "relations": [...]}
+                entities = data.get("entities", [])
+                logger.info(f"Loaded {len(entities)} entities from MCP memory")
+        except Exception as e:
+            logger.warning(f"Failed to load MCP memory: {e}")
+
+        return entities
+
+    def _format_mcp_memory(self, entities: list) -> str:
+        """Format MCP memory entities for dream prompt"""
+        if not entities:
+            return "(LLM自発記憶なし)"
+
+        lines = ["## LLMが自発的に記憶したこと"]
+        for entity in entities:
+            name = entity.get("name", "")
+            entity_type = entity.get("entityType", "")
+            observations = entity.get("observations", [])
+
+            lines.append(f"\n### {name} ({entity_type})")
+            for obs in observations:
+                lines.append(f"- {obs}")
+
+        return "\n".join(lines)
+
     def _format_user_feedback(self, feedbacks: list) -> str:
         """Format user feedback for dream prompt"""
         if not feedbacks:
@@ -246,20 +288,28 @@ class DreamingEngine:
             category = mem.get("category", "unknown")
             memories_text += f"\n### 記憶 {i} [{category}]\n{content}\n"
 
-        # Step 3: Load and format user feedback
+        # Step 3: Load MCP memory (LLM's self-initiated memories)
+        mcp_entities = self._load_mcp_memory()
+        mcp_memory_text = self._format_mcp_memory(mcp_entities)
+
+        # Step 4: Load and format user feedback
         user_feedbacks = self._load_user_feedback(limit=20)
         feedback_text = self._format_user_feedback(user_feedbacks)
-        logger.info(f"Loaded {len(user_feedbacks)} user feedbacks for dreaming")
+        logger.info(f"Loaded {len(user_feedbacks)} user feedbacks, {len(mcp_entities)} MCP entities for dreaming")
 
-        # Step 4: Have LLM generate insights
-        prompt = DREAM_PROMPT.format(memories=memories_text, user_feedback=feedback_text)
+        # Step 5: Have LLM generate insights
+        prompt = DREAM_PROMPT.format(
+            memories=memories_text,
+            mcp_memory=mcp_memory_text,
+            user_feedback=feedback_text
+        )
         response = self._call_llm(prompt)
 
         if not response:
             logger.error("Empty response from LLM")
             return {"status": "failed", "reason": "LLM returned empty response"}
 
-        # Step 5: Extract insights (or use full response if no numbered list)
+        # Step 6: Extract insights (or use full response if no numbered list)
         insights = self._parse_insights(response)
         if not insights:
             # Fallback: save entire response as one insight
@@ -268,7 +318,7 @@ class DreamingEngine:
         else:
             logger.info(f"Extracted {len(insights)} insights")
 
-        # Step 6: Save to insights file
+        # Step 7: Save to insights file
         timestamp = datetime.now().isoformat()
         saved_count = 0
 
@@ -283,7 +333,7 @@ class DreamingEngine:
 
         logger.info(f"Saved {saved_count} insights to {self.insights_file}")
 
-        # Step 7: Archive and delete processed memories
+        # Step 8: Archive and delete processed memories
         processed_ids = [mem["id"] for mem in selected_memories]
 
         # Archive (append to single file)
@@ -291,6 +341,7 @@ class DreamingEngine:
             "archived_at": timestamp,
             "memories_count": len(selected_memories),
             "memories": selected_memories,
+            "mcp_entities_used": len(mcp_entities),
             "user_feedbacks_used": len(user_feedbacks),
             "insights_generated": insights
         }
@@ -309,6 +360,7 @@ class DreamingEngine:
         result = {
             "status": "completed",
             "memories_processed": len(selected_memories),
+            "mcp_entities_used": len(mcp_entities),
             "user_feedbacks_used": len(user_feedbacks),
             "insights_generated": len(insights),
             "insights": insights,
@@ -317,7 +369,7 @@ class DreamingEngine:
             "archive_path": str(self.archives_file)
         }
 
-        logger.info(f"=== Dream V2 Enhanced Complete: {len(insights)} insights from {len(selected_memories)} memories + {len(user_feedbacks)} feedbacks in {duration:.1f}s ===")
+        logger.info(f"=== Dream V2 Enhanced Complete: {len(insights)} insights from {len(selected_memories)} memories + {len(mcp_entities)} MCP entities + {len(user_feedbacks)} feedbacks in {duration:.1f}s ===")
 
         return result
 

@@ -2,14 +2,19 @@
   "lm_studio": {
     "host": "localhost",
     "port": 1234,
-    "api_token": "",
+    "api_token": "YOUR_LM_STUDIO_API_TOKEN",
     "default_model": "",
     "timeout": 300,
     "context_length": 16000
   },
   "mcp_integrations": [
-    "mcp/sequential-thinking"
+    "mcp/sequential-thinking",
+    "mcp/memory"
   ],
+  "moltbook": {
+    "enabled": false,
+    "credentials_path": "~/.config/moltbook/credentials.json"
+  },
   "thinking_habits": {
     "enabled": true,
     "reflection_probability": 1.0

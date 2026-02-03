@@ -137,7 +137,7 @@ class LMStudioAPI:
             tuple: (response_text, metadata)
         """
         if integrations is None:
-            integrations = ["mcp/sequential-thinking"]
+            integrations = ["mcp/sequential-thinking", "mcp/memory"]
 
         # Get currently loaded model - MCP API requires model parameter
         # If no model loaded, use DEFAULT_MODEL for JIT loading (matching original Discord bot)

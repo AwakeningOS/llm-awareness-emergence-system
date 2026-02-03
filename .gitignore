@@ -34,3 +34,14 @@ Thumbs.db
 # Temp files
 *.tmp
 *.bak
+
+# Debug/test files
+debug_*.py
+view_activity.py
+nul
+
+# Moltbook credentials (stored in user home)
+# ~/.config/moltbook/credentials.json
+
+# Article drafts (personal content)
+article_*.md
