@@ -117,22 +117,22 @@ DEFAULT_CONFIG = {
 
 ### memory（記憶）
 
-JSONは必ず以下の形式で1行で出力せよ。改行やコメントを含めるな。
+【重要】引数のJSONは必ず1行で出力せよ。改行・インデント・コメントは絶対に含めるな。
+エラーが返ってきた場合は、同じ呼び出しをリトライせず、記憶なしで応答せよ。
 
-create_entities：
-{"entities": [{"name": "概念名", "entityType": "種別", "observations": ["観察1"]}]}
+OK（正しい）: {"query": "検索したい内容"}
+NG（壊れる）:
+{
+  "query": "検索したい内容"
+}
 
-add_observations：
-{"observations": [{"entityName": "既存の概念名", "contents": ["新しい観察"]}]}
+各操作の引数形式：
 
-search_nodes：
-{"query": "検索したい内容"}
-
-open_nodes：
-{"names": ["概念名"]}
-
-create_relations：
-{"relations": [{"from": "概念A", "to": "概念B", "relationType": "関係の種類"}]}
+search_nodes: {"query": "検索したい内容"}
+open_nodes: {"names": ["概念名"]}
+create_entities: {"entities": [{"name": "概念名", "entityType": "種別", "observations": ["観察1"]}]}
+add_observations: {"observations": [{"entityName": "既存の概念名", "contents": ["新しい観察"]}]}
+create_relations: {"relations": [{"from": "概念A", "to": "概念B", "relationType": "関係の種類"}]}
 
 ### sequentialthinking（段階的思考）
 
