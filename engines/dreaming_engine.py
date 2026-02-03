@@ -49,7 +49,7 @@ DREAM_PROMPT = """あなたは自分の記憶を整理し、学びを抽出す�
 ### C. 新しい理解
 複数の経験を統合して見えた、より深い気づきや構造的理解。
 
-【形式】番号付きリストで出力。各項目は1-2文で簡潔に。
+【形式】番号付きリストで出力。
 例:
 A1. [具体的な修正点]
 A2. [具体的な修正点]
@@ -86,6 +86,7 @@ class DreamingEngine:
         self.archives_file = self.data_dir / "dream_archives.jsonl"
         self.user_feedback_file = self.data_dir / "personality_axis" / "user_feedback.jsonl"
         self.mcp_memory_file = self.data_dir / "mcp_memory.json"
+        self.lora_dataset_file = self.data_dir / "lora_dream_dataset.jsonl"
 
     # ========== LLM API ==========
 
@@ -121,7 +122,7 @@ class DreamingEngine:
                 "input": prompt,
                 "integrations": ["mcp/sequential-thinking"],
                 "temperature": temperature,
-                "context_length": 16000
+                "context_length": 32000
             }
 
             logger.info(f"Dream LLM call: {len(prompt)} chars, model={model}")
@@ -204,11 +205,11 @@ class DreamingEngine:
         dialogue_items.sort(key=lambda x: x.get("importance", 5), reverse=True)
         cycle_items.sort(key=lambda x: x.get("importance", 5), reverse=True)
 
-        # Budget: insight 4, cycle 3, dialogue 3 (total 10)
+        # Budget: insight 3, cycle 2, dialogue 2 (total 7)
         budget = memory_limit
-        selected_insights = insight_items[:min(4, budget)]
+        selected_insights = insight_items[:min(3, budget)]
         budget -= len(selected_insights)
-        selected_cycles = cycle_items[:min(3, budget)]
+        selected_cycles = cycle_items[:min(2, budget)]
         budget -= len(selected_cycles)
         selected_dialogues = dialogue_items[:min(budget, len(dialogue_items))]
 
@@ -360,9 +361,28 @@ class DreamingEngine:
             logger.error(f"Failed to archive feedback: {e}")
             return 0
 
+    # ========== LoRA Dataset ==========
+
+    def _save_lora_training_data(self, prompt: str, insights: list, timestamp: str):
+        """Save dream input/output as LoRA fine-tuning dataset (Alpaca format for LLaMA-Factory)"""
+        try:
+            output_text = "\n".join(insights)
+            entry = {
+                "instruction": "以下の情報を読み、気づきをA(修正すべき行動)/B(強化すべき傾向)/C(新しい理解)に分類してまとめよ。",
+                "input": prompt,
+                "output": output_text,
+                "system": "あなたは自分の記憶を整理し、学びを抽出するAIです。過去の経験から行動パターンの修正点、強化すべき傾向、新しい理解を見出し、番号付きリスト(A1,B1,C1...)で簡潔に出力します。",
+                "timestamp": timestamp
+            }
+            with open(self.lora_dataset_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            logger.info(f"LoRA training data saved: {len(insights)} insights, {len(prompt)} chars input")
+        except Exception as e:
+            logger.error(f"Failed to save LoRA training data: {e}")
+
     # ========== Main Dream Method ==========
 
-    def dream(self, memory_limit: int = 10) -> dict:
+    def dream(self, memory_limit: int = 7) -> dict:
         """Execute unified dreaming across all memory sources."""
         start_time = datetime.now()
         logger.info("=== Unified Dream V3 Starting ===")
@@ -378,7 +398,7 @@ class DreamingEngine:
             return {"status": "skipped", "reason": "No memories"}
 
         # Step 2: Load user feedback (highest priority)
-        user_feedbacks = self._load_user_feedback(limit=10)
+        user_feedbacks = self._load_user_feedback(limit=5)
         feedback_text = self._format_user_feedback_compact(user_feedbacks)
 
         # Step 3: Load previous insights (to carry forward or update)
@@ -451,7 +471,10 @@ class DreamingEngine:
         with open(self.archives_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(archive_entry, ensure_ascii=False) + "\n")
 
-        # Step 9: Delete processed memories from both sources
+        # Step 9: Save as LoRA training data
+        self._save_lora_training_data(prompt, insights, timestamp)
+
+        # Step 11: Delete processed memories from both sources
         deleted_primary = 0
         deleted_secondary = 0
 
@@ -463,7 +486,7 @@ class DreamingEngine:
             result = self.secondary_memory.batch_delete(collected["all_ids"]["secondary"])
             deleted_secondary = result.get("deleted_count", 0)
 
-        # Step 10: Archive user feedback
+        # Step 12: Archive user feedback
         feedbacks_deleted = self._archive_user_feedback(user_feedbacks)
 
         duration = (datetime.now() - start_time).total_seconds()

@@ -284,7 +284,7 @@ class AwarenessBackend:
             input_text=full_input,
             system_prompt=system_prompt,
             integrations=integrations,
-            context_length=self.config.get("lm_studio", {}).get("context_length", 16000),
+            context_length=self.config.get("lm_studio", {}).get("context_length", 32000),
         )
 
         # Update conversation history

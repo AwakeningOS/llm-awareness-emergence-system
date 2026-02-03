@@ -126,7 +126,7 @@ class LMStudioAPI:
         system_prompt: str,
         model: str = "",
         integrations: list = None,
-        context_length: int = 16000,
+        context_length: int = 32000,
         temperature: float = 0.7
     ) -> tuple[str, dict]:
         """
