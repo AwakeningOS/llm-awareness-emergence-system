@@ -720,22 +720,16 @@ class SimpleMemory:
         """Export all memories in format expected by DreamingEngine"""
         memories = self.get_all()
         # Convert to format expected by dreaming engine
-        # Keep content short to avoid context overflow
+        # Only reflection text - no axes, no cycle/action counts
         formatted = []
         for i, mem in enumerate(memories):
-            # Extract only essential info for dreaming
-            content_parts = []
-            if mem.get("reflection"):
-                content_parts.append(f"振り返り: {mem.get('reflection', '')[:300]}")
-            if mem.get("sixaxis"):
-                axes = mem.get("sixaxis", {}).get("response_axes", {})
-                if axes:
-                    content_parts.append(f"六軸: 俯瞰{axes.get('analysis_overview', 0):+d} 変容{axes.get('stability_transformation', 0):+d}")
-            content_parts.append(f"サイクル{mem.get('cycle', i)}, アクション数{mem.get('actions_taken', 0)}")
+            content = mem.get("reflection", "")[:600]
+            if not content:
+                continue
 
             formatted.append({
                 "id": f"mem_{i}",
-                "content": " | ".join(content_parts) if content_parts else f"cycle {i}",
+                "content": content,
                 "category": mem.get("type", "cycle"),
                 "importance": 5,
                 "metadata": mem

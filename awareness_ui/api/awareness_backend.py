@@ -36,7 +36,8 @@ class AwarenessBackend:
             host=lm_config.get("host", "localhost"),
             port=lm_config.get("port", 1234),
             api_token=lm_config.get("api_token", ""),
-            timeout=lm_config.get("timeout", 300)
+            timeout=lm_config.get("timeout", 300),
+            data_dir=self.data_dir
         )
 
         # Initialize engines (lazy import to avoid circular deps)
@@ -70,18 +71,27 @@ class AwarenessBackend:
 
     @property
     def dreaming(self):
-        """Lazy load dreaming engine"""
+        """Lazy load dreaming engine with both memory sources"""
         if self._dreaming is None:
             import sys
             sys.path.insert(0, str(Path(__file__).parent.parent.parent))
             from engines.dreaming_engine import DreamingEngine
+            from engines.integrated_agent import SimpleMemory
+
             lm_config = self.config.get("lm_studio", {})
+
+            # Secondary memory: Moltbook's SimpleMemory
+            moltbook_memory = SimpleMemory(
+                self.data_dir / "integrated_memory.jsonl"
+            )
+
             self._dreaming = DreamingEngine(
                 memory_system=self.memory,
                 data_dir=self.data_dir,
                 llm_host=lm_config.get("host", "localhost"),
                 llm_port=lm_config.get("port", 1234),
-                api_token=lm_config.get("api_token", "")
+                api_token=lm_config.get("api_token", ""),
+                secondary_memory=moltbook_memory
             )
         return self._dreaming
 
@@ -369,8 +379,8 @@ class AwarenessBackend:
         return self.personality.get_recent_user_feedback(limit)
 
     def check_dream_threshold(self) -> dict:
-        """Check dream threshold status"""
-        threshold = self.config.get("dreaming", {}).get("memory_threshold", 50)
+        """Check dream threshold status (unified across all memory sources)"""
+        threshold = self.config.get("dreaming", {}).get("memory_threshold", 10)
         return self.dreaming.check_threshold(threshold)
 
     def trigger_dream(self) -> dict:
@@ -434,6 +444,23 @@ class AwarenessBackend:
             "chromadb_size_mb": round(chromadb_size / 1024 / 1024, 2),
             "personality_size_mb": round(personality_size / 1024 / 1024, 2),
             "total_size_mb": round(total_size / 1024 / 1024, 2),
+        }
+
+    def get_total_memory_count(self) -> dict:
+        """Get memory counts from all sources"""
+        chromadb_count = self.memory.count()
+        moltbook_path = self.data_dir / "integrated_memory.jsonl"
+        moltbook_count = 0
+        if moltbook_path.exists():
+            try:
+                with open(moltbook_path, "r", encoding="utf-8") as f:
+                    moltbook_count = sum(1 for line in f if line.strip())
+            except Exception:
+                pass
+        return {
+            "chromadb": chromadb_count,
+            "moltbook": moltbook_count,
+            "total": chromadb_count + moltbook_count
         }
 
     def get_recent_memories(self, limit: int = 10) -> list[dict]:

@@ -219,8 +219,8 @@ class MemorySystem:
         Returns:
             ID of saved dialogue
         """
-        # Format dialogue as single content
-        content = f"[User: {user_name}] {user_message}\n[Assistant] {assistant_message}"
+        # Save user message only (assistant output excluded from dreaming)
+        content = user_message
 
         return self.save(
             content=content,
@@ -230,8 +230,6 @@ class MemorySystem:
             metadata={
                 "original_user_id": user_id,
                 "user_name": user_name,
-                "user_message": user_message[:500],  # Truncate for metadata
-                "assistant_message": assistant_message[:500],
             }
         )
 

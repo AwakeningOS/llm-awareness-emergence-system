@@ -298,12 +298,17 @@ def create_app():
                     insights_text += f"**[{timestamp}]**\n{insight[:200]}...\n\n---\n\n"
             insights_text = insights_text or "まだ夢見気づきがありません"
 
-            # Dream threshold (auto-dream at 10 memories)
+            # Dream threshold - combined memory from all sources
             dream_threshold = 10
-            dream_progress = min(100, int(moltbook_memory_count / dream_threshold * 100))
+            try:
+                combined_counts = backend.get_total_memory_count()
+                combined_memory = combined_counts["total"]
+            except Exception:
+                combined_memory = moltbook_memory_count
+            dream_progress = min(100, int(combined_memory / dream_threshold * 100))
 
             return (
-                moltbook_memory_count,
+                combined_memory,
                 dream_threshold,
                 dream_progress,
                 total_cycles,
@@ -319,12 +324,12 @@ def create_app():
             return (0, 10, 0, 0, 0, 0, 0, 0, f"エラー: {e}", "")
 
     def get_dream_status():
-        """Get dreaming status"""
+        """Get dreaming status (unified)"""
         threshold = backend.check_dream_threshold()
         stats = backend.dreaming.get_stats()
 
         current = threshold.get("current_count", 0)
-        max_threshold = threshold.get("threshold", 50)
+        max_threshold = threshold.get("threshold", 10)
         progress = min(100, int(current / max_threshold * 100))
 
         # Get pending user feedbacks
@@ -349,42 +354,32 @@ def create_app():
         return status_text, progress
 
     def trigger_dream():
-        """Trigger dreaming for Moltbook integrated memory"""
-        from engines.integrated_agent import IntegratedAgent
-
-        # Create temporary agent to run dreaming on integrated_memory.jsonl
+        """Trigger unified dreaming across all memory sources"""
         try:
-            agent = IntegratedAgent(
-                data_dir=DATA_DIR,
-                llm_host=config.get("lm_studio", {}).get("host", "localhost"),
-                llm_port=config.get("lm_studio", {}).get("port", 1234),
-                api_token=config.get("lm_studio", {}).get("api_token", ""),
-                cycle_interval_minutes=5,
-                post_interval_minutes=30,
-                dream_threshold=10
-            )
+            counts = backend.get_total_memory_count()
+            total = counts["total"]
 
-            # Check memory count first
-            mem_count = agent.memory.count()
-            if mem_count == 0:
-                return "❌ 夢見失敗: 蓄積メモリがありません"
+            if total == 0:
+                return "❌ 夢見失敗: 蓄積メモリがありません（チャット・Moltbook両方とも空）"
 
-            # Run dreaming with limited memories to fit context
-            result = agent.dreaming.dream(memory_limit=10)
+            result = backend.dreaming.dream(memory_limit=10)
 
             if result.get("status") == "completed":
                 insights = "\n".join([f"- {i}" for i in result.get("insights", [])])
                 return f"""
-✅ **夢見完了**
+✅ **統合夢見完了**
 
-処理したメモリ: {result.get("memories_processed", 0)}
-生成した気づき: {result.get("insights_generated", 0)}
-削除したメモリ: {result.get("memories_deleted", 0)}
+📊 ソース: ChromaDB {counts['chromadb']}件 + Moltbook {counts['moltbook']}件
+処理したメモリ: {result.get("memories_processed", 0)}件
+生成した気づき: {result.get("insights_generated", 0)}件
+フィードバック処理: {result.get("user_feedbacks_used", 0)}件
 所要時間: {result.get("duration_seconds", 0):.1f}秒
 
 **得られた気づき**:
 {insights}
 """
+            elif result.get("status") == "skipped":
+                return f"⏭️ 夢見スキップ: {result.get('reason', 'Unknown')}"
             else:
                 return f"❌ 夢見失敗: {result.get('reason', result.get('error', 'Unknown'))}"
         except Exception as e:
